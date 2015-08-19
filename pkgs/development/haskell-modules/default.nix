@@ -45,9 +45,15 @@ let
         mkDerivation = drv: args.mkDerivation (drv // f drv);
       });
 
-      callPackageWithScope = scope: drv: args: (stdenv.lib.callPackageWith scope drv args) // {
-        overrideScope = f: callPackageWithScope (mkScope (fix' (extends f scope.__unfix__))) drv args;
-      };
+      callPackageWithScope = scope: fn: args:
+        let
+          drv = if builtins.isFunction fn then fn else import fn;
+          auto = builtins.intersectAttrs (builtins.functionArgs drv) scope;
+          drvScope = args: drv args // { 
+            overrideScope = f: 
+              callPackageWithScope (mkScope (fix' (extend scope.__unfix__ f))) drv args;
+          };
+        in stdenv.lib.makeOverridable drvScope (auto // args);
 
       mkScope = scope: pkgs // pkgs.xorg // pkgs.gnome // scope;
       defaultScope = mkScope self;
